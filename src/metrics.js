@@ -30,29 +30,44 @@ const activeConnections = new client.Gauge({
   registers: [register]
 });
 
-// Middleware para monitorar as requisições
+// Middleware para iniciar a monitoração de requisição (onRequest)
 const monitorRequest = (request, reply, done) => {
-  // Incrementar o contador de requisições
-  const end = httpRequestDurationMicroseconds.startTimer();
+  // Incrementar conexões ativas
   activeConnections.inc();
   
-  reply.on('sent', () => {
-    // Finalizar a medição de duração quando a resposta for enviada
-    const labels = {
-      method: request.method,
-      route: request.routerPath || request.url,
-      status_code: reply.statusCode
-    };
-    
-    httpRequestsTotal.inc(labels);
-    end(labels);
-    activeConnections.dec();
-  });
+  // Armazenar o tempo de início
+  request.metricsStart = process.hrtime();
+  
+  done();
+};
+
+// Middleware para finalizar a monitoração (onResponse)
+const monitorResponse = (request, reply, done) => {
+  // Coletar métricas quando a resposta for enviada
+  const labels = {
+    method: request.method,
+    route: request.routerPath || request.url,
+    status_code: reply.statusCode
+  };
+  
+  // Incrementar contador de requisições
+  httpRequestsTotal.inc(labels);
+  
+  // Calcular duração se temos um tempo de início
+  if (request.metricsStart) {
+    const hrDuration = process.hrtime(request.metricsStart);
+    const durationMs = hrDuration[0] * 1000 + hrDuration[1] / 1000000;
+    httpRequestDurationMicroseconds.observe(labels, durationMs);
+  }
+  
+  // Decrementar conexões ativas
+  activeConnections.dec();
   
   done();
 };
 
 module.exports = {
   register,
-  monitorRequest
+  monitorRequest,
+  monitorResponse
 }; 

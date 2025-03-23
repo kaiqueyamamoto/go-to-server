@@ -1,9 +1,18 @@
 // Importando o Fastify
 const fastify = require('fastify')({ logger: true });
-const { monitorRequest } = require('./src/metrics');
+const { monitorRequest, monitorResponse } = require('./src/metrics');
+const cors = require('@fastify/cors');
 
-// Adicionar o middleware de métricas para todas as requisições
+// Registrar CORS - permitir acesso de qualquer origem
+fastify.register(cors, { 
+  origin: '*',
+  methods: ['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+});
+
+// Adicionar os middlewares de métricas
 fastify.addHook('onRequest', monitorRequest);
+fastify.addHook('onResponse', monitorResponse);
 
 // Rota raiz
 fastify.get('/', async (request, reply) => {
